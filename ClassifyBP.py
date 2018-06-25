@@ -7,7 +7,7 @@ author:Suo Chuanzhe
 """
 
 import numpy as np
-from BPModel import BPModel
+from RBFModel import BPModel
 
 import matplotlib.pyplot as plt
 

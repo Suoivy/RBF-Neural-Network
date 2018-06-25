@@ -14,7 +14,7 @@ visualize the training and prediction data.
 import numpy as np
 import os
 import time
-from BPModel import BPModel
+from RBFModel import BPModel
 
 import matplotlib.pyplot as plt
 

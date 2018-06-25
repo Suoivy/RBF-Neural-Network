@@ -13,7 +13,7 @@ using different activation function, loss function and optimizer to train 3-laye
 import numpy as np
 import os
 import time
-from BPModel import BPModel
+from RBFModel import BPModel
 
 import matplotlib.pyplot as plt
 

@@ -1,18 +1,19 @@
 """"
-Date:2017.4.2
+Date:2017.4.26
 Neural Network design homework
-Using 3-layers-BP NN to classification and regression
+Using 3-phases-RBF NN to regression
 author:Suo Chuanzhe
 
 """
 
 import numpy as np
 import time
+from sklearn.cluster import KMeans
 
 import matplotlib.pyplot as plt
 
 
-class BPModel():
+class RBFModel():
     # config model value
     """
      Input: data_input(array(IN_value_num,data_num))
@@ -30,10 +31,10 @@ class BPModel():
         self.hidden_units_number = hidden_units_number
         self.output_units_number = self.output.shape[0]
 
-        self.weight_1, self.bias_1, self.weight_2, self.bias_2 = np.array([[], [], [], []])
+        self.center, self.spread, self.weight, self.bias = np.array([[], [], [], []])
 
-        self.hidden_activation = self.sigmoid_activation
-        self.hidden_activation_gradient = self.sigmoid_gradient
+        self.radial_basis_function = self.sigmoid_activation
+        self.radial_basis_function_gradient = self.sigmoid_gradient
         self.output_activation = self.sigmoid_activation
         self.output_activation_gradient = self.sigmoid_gradient
 
@@ -50,23 +51,23 @@ class BPModel():
      input: activation_function(function) activation_gradient(function)
     """
 
-    def initialize_parameters(self, hidden_activation, hidden_activation_gradient,
+    def initialize_parameters(self, radial_basis_function, radial_basis_function_gradient,
                               output_activation, output_activation_gradient):
 
-        self.weight_1 = 0.2 * np.random.rand(self.hidden_units_number, self.input_units_number) - 0.1
-        self.bias_1 = 0.2 * np.random.rand(self.hidden_units_number, 1) - 0.1
-        self.weight_2 = 0.2 * np.random.rand(self.output_units_number, self.hidden_units_number) - 0.1
-        self.bias_2 = 0.2 * np.random.rand(self.output_units_number, 1) - 0.1
+        self.center = 8 * np.random.rand(self.hidden_units_number, self.input_units_number) - 4
+        self.spread = 0.2 * np.random.rand(self.hidden_units_number, 1) + 0.1
+        self.weight = 0.2 * np.random.rand(self.output_units_number, self.hidden_units_number) - 0.1
+        self.bias = 0.2 * np.random.rand(self.output_units_number, 1) - 0.1
 
-        self.set_activation(hidden_activation, hidden_activation_gradient, output_activation,
+        self.set_activation(radial_basis_function, radial_basis_function_gradient, output_activation,
                             output_activation_gradient)
 
     # Set activation function
-    def set_activation(self, hidden_activation, hidden_activation_gradient, output_activation,
+    def set_activation(self, radial_basis_function, radial_basis_function_gradient, output_activation,
                        output_activation_gradient):
 
-        self.hidden_activation = hidden_activation
-        self.hidden_activation_gradient = hidden_activation_gradient
+        self.radial_basis_function = radial_basis_function
+        self.radial_basis_function_gradient = radial_basis_function_gradient
         self.output_activation = output_activation
         self.output_activation_gradient = output_activation_gradient
 
@@ -140,7 +141,7 @@ class BPModel():
         if len(input_) == 0:
             input_ = self.input
 
-        hidden_output = self.hidden_activation(self.weight_1.dot(input_) + self.bias_1)
+        hidden_output = self.radial_basis_function(self.weight_1.dot(input_) + self.bias_1)
         network_output = self.output_activation(self.weight_2.dot(hidden_output) + self.bias_2)
 
         return hidden_output, network_output
@@ -150,7 +151,7 @@ class BPModel():
 
         hidden_gradient = self.loss_function_gradient(network_output, self.output) * self.output_activation_gradient(
             network_output)
-        input_gradient = self.weight_2.T.dot(hidden_gradient) * self.hidden_activation_gradient(hidden_output)
+        input_gradient = self.weight_2.T.dot(hidden_gradient) * self.radial_basis_function_gradient(hidden_output)
 
         delta_weight_2 = hidden_gradient.dot(hidden_output.T) / self.data_number
         delta_bias_2 = hidden_gradient.dot(np.ones((200, 1))) / self.data_number
