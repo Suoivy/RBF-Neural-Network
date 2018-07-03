@@ -1,7 +1,7 @@
 """"
-Date:2017.6.10
+Date:2017.4.28
 Neural Network design homework
-Using 3-layers-BP NN to classification and regression
+Using 3-layers-RBF NN to classification and regression
 author:Suo Chuanzhe
 email: suo_ivy@foxmail.com
 
@@ -14,66 +14,41 @@ visualize the training and prediction data.
 import numpy as np
 import os
 import time
-from RBFModel import BPModel
+from RBFModel import RBFModel
 
 import matplotlib.pyplot as plt
 
 plt.rcParams['agg.path.chunksize'] = 50000
 
-
 # generate dataset to classify
-def gen_classify_data(numbers):
-    sample_input = (np.random.rand(2, numbers) - 0.5) * 4
-    sample_output = np.array([[], [], []])
+def gen_regression_data(numbers):
 
-    for i in range(numbers):
-        sample = sample_input[:, i]
-        x = sample[0]
-        y = sample[1]
-
-        if ((x > -1) & (x < 1)) == 1:
-            if ((y > x / 2 + 1 / 2) & (y < 1)) == 1:
-                sample_output = np.append(sample_output, np.array([[0], [1], [0]]), axis=1)
-            elif ((y < -0.5) & (y > -1.5)) == 1:
-                sample_output = np.append(sample_output, np.array([[0], [0], [1]]), axis=1)
-            else:
-                sample_output = np.append(sample_output, np.array([[1], [0], [0]]), axis=1)
-        else:
-            sample_output = np.append(sample_output, np.array([[1], [0], [0]]), axis=1)
+    noise_var = 0.1
+    noise = noise_var*np.random.rand(1, numbers)
+    sample_input = 8 * np.random.rand(1, numbers) - 4
+    sample_output = 1.1 * (1-sample_input + 2 * np.power(sample_input, 2)) * np.exp(-np.power(sample_input, 2)/2) + noise
 
     return sample_input, sample_output
 
-
-def visualization(sample_x, sample_y, save=False, path='inference/sample-data.png'):
+def visualization(sample_x, sample_y):
     samp = plt.figure()
-    samp_ax = samp.add_subplot(1, 1, 1)
-    samp_ax.set_title('sample data')
-    type = np.where(sample_y.T == sample_y.max())[1]
-    samp_ax.scatter(sample_x[0], sample_x[1], c='g', linewidths=type)
-    if save:
-        plt.savefig(path, dpi=400, bbox_inches='tight')
+    ax = samp.add_subplot(1, 1, 1)
+    ax.plot(sample_x, sample_y, 'k +')
     plt.show()
 
-
-def compare_visual(sample_x, sample_y, predict_y, save=False, path='inference/inference-compare.png',
+def compare_visual(sample_x, sample_y, predict_y,save=False, path='inference/inference-compare.png',
                    title='inference comparison', loss=0):
     comp = plt.figure()
     comp.suptitle(title)
-    samp_ax = plt.subplot2grid((2, 2), (0, 0))
-    pred_ax = plt.subplot2grid((2, 2), (0, 1))
-    comp_ax = plt.subplot2grid((2, 2), (1, 0), colspan=2)
-    samp_ax.set_title('sample results')
-    pred_ax.set_title('predict results')
-    comp_ax.set_title('comparison loss= %.5f' %loss)
-    sam_type = np.where(sample_y.T == sample_y.max())[1]
-    pred_type = np.where(predict_y.T == predict_y.max())[1]
-    type = pred_type - sam_type
-    samp_ax.scatter(sample_x[0], sample_x[1], c='g', linewidths=sam_type)
-    pred_ax.scatter(sample_x[0], sample_x[1], c='g', linewidths=pred_type)
-    comp_ax.scatter(sample_x[0], sample_x[1], c=type)
+    comp_ax = comp.add_subplot(1, 1, 1)
+    #pred_ax = comp.add_subplot(2, 1, 2)
+    comp_ax.set_title('Black:Groud truth; Blue:Predict; loss= %.5f' % loss, fontsize='small')
+    comp_ax.plot(sample_x, sample_y, 'k.')
+    comp_ax.plot(sample_x, predict_y, 'b +')
     if save:
         plt.savefig(path, dpi=400, bbox_inches='tight')
-    plt.show()
+    #plt.show()
+
 
 
 # generate dataset to regression
@@ -86,77 +61,75 @@ def main():
     # BGD_optimizer
     # def BGD_optimizer(self, param, hyper_param={'learn_rate': 0.01}):
     def BGD():
-        return classifier.train(classifier.L2_loss, classifier.L2_loss_gradient, classifier.BGD_optimizer, 0.01,
+        return regress.train(regress.L2_loss, regress.L2_loss_gradient, regress.BGD_optimizer, 0.01,
                                 iteration, evaluate, learn_rate=0.2)
 
     # Momentum_optimizer
     # def Momentum_optimizer(self, param, hyper_param={'learn_rate': 0.01, 'momentum_rate': 0.9}):
     def Momentum():
-        return classifier.train(classifier.L2_loss, classifier.L2_loss_gradient, classifier.Momentum_optimizer, 0.01,
+        return regress.train(regress.L2_loss, regress.L2_loss_gradient, regress.Momentum_optimizer, 0.01,
                                 iteration, evaluate, learn_rate=0.1, momentum_rate=0.9)
 
     # Nesterov Accelerated Gradient(NAG_optimizer)
     # def NAG_optimizer(self, param, hyper_param={'learn_rate': 0.01, 'momentum_rate': 0.9}):
     def NAG():
-        return classifier.train(classifier.L2_loss, classifier.L2_loss_gradient, classifier.NAG_optimizer, 0.01,
+        return regress.train(regress.L2_loss, regress.L2_loss_gradient, regress.NAG_optimizer, 0.01,
                                 iteration, evaluate, learn_rate=0.1, momentum_rate=0.9)
 
     # Adagrad_optimizer
     # def Adagrad_optimizer(self, param, hyper_param={'learn_rate': 0.01}):
     def Adagrad():
-        return classifier.train(classifier.L2_loss, classifier.L2_loss_gradient, classifier.Adagrad_optimizer, 0.01,
+        return regress.train(regress.L2_loss, regress.L2_loss_gradient, regress.Adagrad_optimizer, 0.01,
                                 iteration, evaluate, learn_rate=0.1)
 
     # Adadelta_optimizer
     # def Adadelta_optimizer(self, param, hyper_param={'decay_rate': 0.9}):
     def Adadelta():
-        return classifier.train(classifier.L2_loss, classifier.L2_loss_gradient, classifier.Adadelta_optimizer, 0.01,
+        return regress.train(regress.L2_loss, regress.L2_loss_gradient, regress.Adadelta_optimizer, 0.01,
                                 iteration, evaluate, decay_rate=0.9)
 
     # RMSProp
     # def RMSProp_optimizer(self, param, hyper_param={'learn_rate': 0.01, 'decay_rate': 0.9}):
     def RMSProp():
-        return classifier.train(classifier.L2_loss, classifier.L2_loss_gradient, classifier.RMSProp_optimizer, 0.01,
+        return regress.train(regress.L2_loss, regress.L2_loss_gradient, regress.RMSProp_optimizer, 0.01,
                                 iteration, evaluate, learn_rate=0.01, decay_rate=0.9)
 
     # RMSProp_with_Nesterov
     # def RMSProp_Nesterov_optimizer(self, param, hyper_param={'learn_rate': 0.01, 'momentum_rate': 0.9, 'decay_rate': 0.9}):
     def RMSProp_Nesterov():
-        return classifier.train(classifier.L2_loss, classifier.L2_loss_gradient, classifier.RMSProp_Nesterov_optimizer,
+        return regress.train(regress.L2_loss, regress.L2_loss_gradient, regress.RMSProp_Nesterov_optimizer,
                                 0.01, iteration, evaluate, learn_rate=0.01, momentum_rate=0.9, decay_rate=0.9)
 
     # Adam
     # def Adam_optimizer(self, param, hyper_param={'learn_rate': 0.01, 'decay1_rate': 0.9, 'decay2_rate': 0.999}):
     def Adam():
-        return classifier.train(classifier.L2_loss, classifier.L2_loss_gradient, classifier.Adam_optimizer, 0.01,
+        return regress.train(regress.L2_loss, regress.L2_loss_gradient, regress.Adam_optimizer, 0.01,
                                 iteration, evaluate, learn_rate=0.01, decay1_rate=0.9, decay2_rate=0.999)
 
     ### Activation ###
-    # sigmoid
-    def sigmoid():
-        classifier.set_activation(classifier.sigmoid_activation, classifier.sigmoid_gradient,
-                                  classifier.sigmoid_activation, classifier.sigmoid_gradient)
+    # Gaussian
+    def Gaussian():
+        regress.set_activation(regress.Gaussian_basis, regress.Gaussian_gradient,
+                                      regress.none_activation, regress.none_gradient)
 
-    # tanh
-    def tanh():
-        classifier.set_activation(classifier.tanh_activation, classifier.tanh_gradient,
-                                  classifier.tanh_activation, classifier.tanh_gradient)
+        # Reflected_sigmoid
 
-    # ReLU
-    def ReLU():
-        classifier.set_activation(classifier.ReLU_activation, classifier.ReLU_gradient,
-                                  classifier.ReLU_activation, classifier.ReLU_gradient)
+    def Reflected_sigmoid():
+        regress.set_activation(regress.Reflected_sigmoid_basis, regress.Reflected_sigmoid_gradient,
+                                      regress.none_activation, regress.none_gradient)
 
-    eval_samples_x, eval_samples_y = gen_classify_data(1000)
+    eval_samples_x = np.arange(-4, 4, 0.08).reshape(1,-1)
+    eval_samples_y = 1.1 * (1-eval_samples_x + 2 * np.power(eval_samples_x, 2)) * np.exp(-np.power(eval_samples_x, 2)/2)
     visualization(eval_samples_x, eval_samples_y)
 
-    classifier = BPModel()
+    regress = RBFModel()
 
     evaluate = True  # Train model and evaluate with evaluate_samples simultaneously
+    withcluster = True
 
     optimizer = {'BGD': BGD, 'Momentum': Momentum, 'NAG': NAG, 'Adagrad': Adagrad, 'Adadelta': Adadelta,
                  'RMSProp': RMSProp, 'RMSProp_Nesterov': RMSProp_Nesterov, 'Adam': Adam}
-    activation = {'sigmoid': sigmoid, 'tanh': tanh, 'ReLU': ReLU}
+    activation = {'Gaussian': Gaussian, 'Reflected_sigmoid': Reflected_sigmoid}
 
     line = {'BGD': 'b-', 'Momentum': 'r-', 'NAG': 'g-', 'Adagrad': 'k-', 'Adadelta': 'y-', 'RMSProp': 'c-',
             'RMSProp_Nesterov': 'm-', 'Adam': 'k--'}
@@ -181,17 +154,18 @@ def main():
 
         act_function = filename.split('-')[0]
         opti = filename.split('-')[1]
+        method = filename.split('-')[2]
 
-        classifier.load_model(file)
+        regress.load_model(file)
         activation[act_function]()
 
-        results, loss = classifier.evaluate(eval_samples_x, eval_samples_y)
-        predict_y = (list(map(lambda x: x == max(x), results.T)) * np.ones_like(results.T)).T
+        predict_y, loss = regress.evaluate(eval_samples_x, eval_samples_y)
         compare_visual(eval_samples_x, eval_samples_y, predict_y, save=True,
-                       path='inference/' + str(act_function) + '-' + str(opti) + '-inference.png',
-                       title=str(act_function) + '-' + str(opti) + '-comparison', loss=loss)
+                       path='inference/' + str(act_function) + '-' + str(opti) + '-' + str(method) + '-inference.png',
+                       title=str(act_function) + '-' + str(opti) + '-' + str(method) + '-comparison', loss=loss)
 
         print(loss)
+
 
 
 if __name__ == "__main__":

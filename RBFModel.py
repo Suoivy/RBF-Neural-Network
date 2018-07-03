@@ -1,14 +1,16 @@
 """"
-Date:2017.4.26
+Date:2017.4.27
 Neural Network design homework
 Using 3-phases-RBF NN to regression
 author:Suo Chuanzhe
+email: suo_ivy@foxmail.com
 
 """
 
 import numpy as np
 import time
 from sklearn.cluster import KMeans
+from scipy.spatial import distance
 
 import matplotlib.pyplot as plt
 
@@ -32,11 +34,12 @@ class RBFModel():
         self.output_units_number = self.output.shape[0]
 
         self.center, self.spread, self.weight, self.bias = np.array([[], [], [], []])
+        self.radial_basis_input = np.array([])
 
         self.radial_basis_function = self.sigmoid_activation
         self.radial_basis_function_gradient = self.sigmoid_gradient
-        self.output_activation = self.sigmoid_activation
-        self.output_activation_gradient = self.sigmoid_gradient
+        self.output_activation = self.none_activation
+        self.output_activation_gradient = self.none_gradient
 
         self.loss_function = self.L2_loss
         self.loss_function_gradient = self.L2_loss_gradient
@@ -70,6 +73,16 @@ class RBFModel():
         self.radial_basis_function_gradient = radial_basis_function_gradient
         self.output_activation = output_activation
         self.output_activation_gradient = output_activation_gradient
+
+    # Cluster hidden unit center using Kmeans
+    def cluster_center(self):
+
+        estimator = KMeans(n_clusters = self.hidden_units_number)
+        estimator.fit(self.input.T)
+        self.center = estimator.cluster_centers_
+        alldist = distance.cdist(self.center, self.center, 'euclidean')
+        dist = np.where(alldist == 0, alldist.max()+1, alldist)
+        self.spread = dist.min(axis=1).reshape(self.hidden_units_number, 1)
 
     # Set evaluate dataset
     def set_evaluate_dataset(self, samp_input, samp_output):
@@ -141,8 +154,10 @@ class RBFModel():
         if len(input_) == 0:
             input_ = self.input
 
-        hidden_output = self.radial_basis_function(self.weight_1.dot(input_) + self.bias_1)
-        network_output = self.output_activation(self.weight_2.dot(hidden_output) + self.bias_2)
+        self.distance = distance.cdist(input_.T, self.center, 'euclidean').T
+        self.radial_basis_input = self.distance / self.spread
+        hidden_output = self.radial_basis_function(self.radial_basis_input)
+        network_output = self.output_activation(self.weight.dot(hidden_output) + self.bias)
 
         return hidden_output, network_output
 
@@ -151,14 +166,16 @@ class RBFModel():
 
         hidden_gradient = self.loss_function_gradient(network_output, self.output) * self.output_activation_gradient(
             network_output)
-        input_gradient = self.weight_2.T.dot(hidden_gradient) * self.radial_basis_function_gradient(hidden_output)
+        input_gradient = self.weight.T.dot(hidden_gradient) * self.radial_basis_function_gradient(self.radial_basis_input)
 
-        delta_weight_2 = hidden_gradient.dot(hidden_output.T) / self.data_number
-        delta_bias_2 = hidden_gradient.dot(np.ones((200, 1))) / self.data_number
-        delta_weight_1 = input_gradient.dot(self.input.T) / self.data_number
-        delta_bias_1 = input_gradient.dot(np.ones((200, 1))) / self.data_number
+        delta_weight = hidden_gradient.dot(hidden_output.T) / self.data_number
+        delta_bias = hidden_gradient.dot(np.ones((self.data_number, 1))) / self.data_number
+        ldist = np.tile(self.input, (self.hidden_units_number, 1)) - self.center.reshape(self.input_units_number*self.hidden_units_number, 1)  # shape: i*h,n
+        ldist_gradient = (input_gradient / self.spread) / (-self.distance)
+        delta_center = (ldist * ldist_gradient.repeat(self.input_units_number, 0)).sum(axis=1).reshape(self.hidden_units_number, self.input_units_number) / self.data_number
+        delta_spread = (input_gradient * (-self.distance * np.power(self.spread, -2))).dot(np.ones((self.data_number, 1))) / self.data_number
 
-        return delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2
+        return delta_center, delta_spread, delta_weight, delta_bias
 
     # evaluate model
     def evaluate(self, input, output, ):
@@ -194,15 +211,15 @@ class RBFModel():
         loss_ = self.loss_function(network_output_, self.output)
 
         # Backward propagation
-        delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2 = self._backward(hidden_output_, network_output_)
-        extended_gradient = self.extend_variables(delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2)
-        extended_variables = self.extend_variables(self.weight_1, self.bias_1, self.weight_2, self.bias_2)
+        delta_center, delta_spread, delta_weight, delta_bias = self._backward(hidden_output_, network_output_)
+        extended_gradient = self.extend_variables(delta_center, delta_spread, delta_weight, delta_bias)
+        extended_variables = self.extend_variables(self.center, self.spread, self.weight, self.bias)
 
         # Updata variables
         extended_delta = learn_rate * extended_gradient
         extended_variables = extended_variables - extended_delta
 
-        self.weight_1, self.bias_1, self.weight_2, self.bias_2 = self.split_weights(extended_variables)
+        self.center, self.spread, self.weight, self.bias = self.split_weights(extended_variables)
 
         return loss_
 
@@ -231,9 +248,9 @@ class RBFModel():
         loss_ = self.loss_function(network_output_, self.output)
 
         # Backward propagation
-        delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2 = self._backward(hidden_output_, network_output_)
-        extended_gradient = self.extend_variables(delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2)
-        extended_variables = self.extend_variables(self.weight_1, self.bias_1, self.weight_2, self.bias_2)
+        delta_center, delta_spread, delta_weight, delta_bias = self._backward(hidden_output_, network_output_)
+        extended_gradient = self.extend_variables(delta_center, delta_spread, delta_weight, delta_bias)
+        extended_variables = self.extend_variables(self.center, self.spread, self.weight, self.bias)
 
         # Updata variables
         extended_delta = param[0]
@@ -241,7 +258,7 @@ class RBFModel():
         param[0] = extended_delta
         extended_variables = extended_variables - extended_delta
 
-        self.weight_1, self.bias_1, self.weight_2, self.bias_2 = self.split_weights(extended_variables)
+        self.center, self.spread, self.weight, self.bias = self.split_weights(extended_variables)
 
         return loss_
 
@@ -264,9 +281,9 @@ class RBFModel():
             return
 
         # Forward propagation
-        extended_variables = self.extend_variables(self.weight_1, self.bias_1, self.weight_2, self.bias_2)
+        extended_variables = self.extend_variables(self.center, self.spread, self.weight, self.bias)
         extended_delta = param[0]
-        self.weight_1, self.bias_1, self.weight_2, self.bias_2 = self.split_weights(
+        self.center, self.spread, self.weight, self.bias = self.split_weights(
             extended_variables - momentum_rate * extended_delta)
         hidden_output_, network_output_ = self._forward()
 
@@ -274,15 +291,15 @@ class RBFModel():
         loss_ = self.loss_function(network_output_, self.output)
 
         # Backward propagation
-        delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2 = self._backward(hidden_output_, network_output_)
-        extended_gradient = self.extend_variables(delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2)
+        delta_center, delta_spread, delta_weight, delta_bias = self._backward(hidden_output_, network_output_)
+        extended_gradient = self.extend_variables(delta_center, delta_spread, delta_weight, delta_bias)
 
         # Updata variables
         extended_delta = momentum_rate * extended_delta + learn_rate * extended_gradient
         param[0] = extended_delta
         extended_variables = extended_variables - extended_delta
 
-        self.weight_1, self.bias_1, self.weight_2, self.bias_2 = self.split_weights(extended_variables)
+        self.center, self.spread, self.weight, self.bias = self.split_weights(extended_variables)
 
         return loss_
 
@@ -307,9 +324,9 @@ class RBFModel():
         loss_ = self.loss_function(network_output_, self.output)
 
         # Backward propagation
-        delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2 = self._backward(hidden_output_, network_output_)
-        extended_gradient = self.extend_variables(delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2)
-        extended_variables = self.extend_variables(self.weight_1, self.bias_1, self.weight_2, self.bias_2)
+        delta_center, delta_spread, delta_weight, delta_bias = self._backward(hidden_output_, network_output_)
+        extended_gradient = self.extend_variables(delta_center, delta_spread, delta_weight, delta_bias)
+        extended_variables = self.extend_variables(self.center, self.spread, self.weight, self.bias)
 
         # Updata variables
         accumulated_gradient = param[0]
@@ -318,7 +335,7 @@ class RBFModel():
         extended_delta = learn_rate / np.sqrt(accumulated_gradient + delta) * extended_gradient
         extended_variables = extended_variables - extended_delta
 
-        self.weight_1, self.bias_1, self.weight_2, self.bias_2 = self.split_weights(extended_variables)
+        self.center, self.spread, self.weight, self.bias = self.split_weights(extended_variables)
 
         return loss_
 
@@ -344,9 +361,9 @@ class RBFModel():
         loss_ = self.loss_function(network_output_, self.output)
 
         # Backward propagation
-        delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2 = self._backward(hidden_output_, network_output_)
-        extended_gradient = self.extend_variables(delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2)
-        extended_variables = self.extend_variables(self.weight_1, self.bias_1, self.weight_2, self.bias_2)
+        delta_center, delta_spread, delta_weight, delta_bias = self._backward(hidden_output_, network_output_)
+        extended_gradient = self.extend_variables(delta_center, delta_spread, delta_weight, delta_bias)
+        extended_variables = self.extend_variables(self.center, self.spread, self.weight, self.bias)
 
         # Updata variables
         accumulated_gradient = param[0]
@@ -359,7 +376,7 @@ class RBFModel():
         param[1] = accumulated_delta
         extended_variables = extended_variables - extended_delta
 
-        self.weight_1, self.bias_1, self.weight_2, self.bias_2 = self.split_weights(extended_variables)
+        self.center, self.spread, self.weight, self.bias = self.split_weights(extended_variables)
 
         return loss_
 
@@ -389,9 +406,9 @@ class RBFModel():
         loss_ = self.loss_function(network_output_, self.output)
 
         # Backward propagation
-        delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2 = self._backward(hidden_output_, network_output_)
-        extended_gradient = self.extend_variables(delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2)
-        extended_variables = self.extend_variables(self.weight_1, self.bias_1, self.weight_2, self.bias_2)
+        delta_center, delta_spread, delta_weight, delta_bias = self._backward(hidden_output_, network_output_)
+        extended_gradient = self.extend_variables(delta_center, delta_spread, delta_weight, delta_bias)
+        extended_variables = self.extend_variables(self.center, self.spread, self.weight, self.bias)
 
         # Updata variables
         accumulated_gradient = param[0]
@@ -401,7 +418,7 @@ class RBFModel():
         extended_delta = learn_rate / np.sqrt(accumulated_gradient + delta) * extended_gradient
         extended_variables = extended_variables - extended_delta
 
-        self.weight_1, self.bias_1, self.weight_2, self.bias_2 = self.split_weights(extended_variables)
+        self.center, self.spread, self.weight, self.bias = self.split_weights(extended_variables)
 
         return loss_
 
@@ -432,9 +449,9 @@ class RBFModel():
             return
 
         # Forward propagation
-        extended_variables = self.extend_variables(self.weight_1, self.bias_1, self.weight_2, self.bias_2)
+        extended_variables = self.extend_variables(self.center, self.spread, self.weight, self.bias)
         extended_delta = param[0]
-        self.weight_1, self.bias_1, self.weight_2, self.bias_2 = self.split_weights(
+        self.center, self.spread, self.weight, self.bias = self.split_weights(
             extended_variables - momentum_rate * extended_delta)
         hidden_output_, network_output_ = self._forward()
 
@@ -442,9 +459,9 @@ class RBFModel():
         loss_ = self.loss_function(network_output_, self.output)
 
         # Backward propagation
-        delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2 = self._backward(hidden_output_, network_output_)
-        extended_gradient = self.extend_variables(delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2)
-        extended_variables = self.extend_variables(self.weight_1, self.bias_1, self.weight_2, self.bias_2)
+        delta_center, delta_spread, delta_weight, delta_bias = self._backward(hidden_output_, network_output_)
+        extended_gradient = self.extend_variables(delta_center, delta_spread, delta_weight, delta_bias)
+        extended_variables = self.extend_variables(self.center, self.spread, self.weight, self.bias)
 
         # Updata variables
         accumulated_gradient = param[1]
@@ -454,7 +471,7 @@ class RBFModel():
         extended_delta = learn_rate / np.sqrt(accumulated_gradient + delta) * extended_gradient
         extended_variables = extended_variables - extended_delta
 
-        self.weight_1, self.bias_1, self.weight_2, self.bias_2 = self.split_weights(extended_variables)
+        self.center, self.spread, self.weight, self.bias = self.split_weights(extended_variables)
 
         return loss_
 
@@ -491,9 +508,9 @@ class RBFModel():
         loss_ = self.loss_function(network_output_, self.output)
 
         # Backward propagation
-        delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2 = self._backward(hidden_output_, network_output_)
-        extended_gradient = self.extend_variables(delta_weight_1, delta_bias_1, delta_weight_2, delta_bias_2)
-        extended_variables = self.extend_variables(self.weight_1, self.bias_1, self.weight_2, self.bias_2)
+        delta_center, delta_spread, delta_weight, delta_bias = self._backward(hidden_output_, network_output_)
+        extended_gradient = self.extend_variables(delta_center, delta_spread, delta_weight, delta_bias)
+        extended_variables = self.extend_variables(self.center, self.spread, self.weight, self.bias)
 
         # Updata variables
         accumulated_gradient = param[0]
@@ -510,7 +527,7 @@ class RBFModel():
         extended_delta = learn_rate * extended_moment1 / (np.sqrt(extended_moment2) + delta)
         extended_variables = extended_variables - extended_delta
 
-        self.weight_1, self.bias_1, self.weight_2, self.bias_2 = self.split_weights(extended_variables)
+        self.center, self.spread, self.weight, self.bias = self.split_weights(extended_variables)
 
         return loss_
 
@@ -580,6 +597,33 @@ class RBFModel():
 
         return output_
 
+    # RBF Gaussian Function
+    def Gaussian_basis(self, input_):
+
+        output_ = np.exp(-np.power(input_, 2))
+
+        return output_
+
+    def Gaussian_gradient(self, input_):
+
+        output_ = -2 * input_ * np.exp(-np.power(input_, 2))
+
+        return output_
+
+    # RBF Reflected sigmoid Function
+    def Reflected_sigmoid_basis(self, input_):
+
+        output_ = 1 / (1 + np.exp(np.power(input_, 2)))
+
+        return output_
+
+    def Reflected_sigmoid_gradient(self, input_):
+
+        output_ = -2 * input_ * np.exp(np.power(input_, 2)) / np.power(1 + np.exp(np.power(input_, 2)), 2)
+
+        return output_
+
+
     ### Loss Functions ###
     # output_: Network predict output   output: dataset output
     # L2_loss (RMSE)
@@ -614,40 +658,40 @@ class RBFModel():
     # softmax cross_entropy loss
 
     ### utilities ###
-    def extend_variables(self, weight_1_, bias_1_, weight_2_, bias_2_):
+    def extend_variables(self, center_, spread_, weight_, bias_):
 
         variables = np.concatenate(
-            (weight_1_.reshape(-1), bias_1_.reshape(-1), weight_2_.reshape(-1), bias_2_.reshape(-1)))
+            (center_.reshape(-1), spread_.reshape(-1), weight_.reshape(-1), bias_.reshape(-1)))
 
         return variables
 
     def split_weights(self, variables):
 
-        weight_1_mark = self.input_units_number * self.hidden_units_number
-        bias_1_mark = weight_1_mark + self.hidden_units_number
-        weight_2_mark = bias_1_mark + self.hidden_units_number * self.output_units_number
-        weight_1 = variables[: weight_1_mark].copy()
-        weight_1 = weight_1.reshape(self.hidden_units_number, self.input_units_number)
-        bias_1 = variables[weight_1_mark: bias_1_mark].copy()
-        bias_1 = bias_1.reshape(self.hidden_units_number, 1)
-        weight_2 = variables[bias_1_mark: weight_2_mark].copy()
-        weight_2 = weight_2.reshape(self.output_units_number, self.hidden_units_number)
-        bias_2 = variables[weight_2_mark:].copy()
-        bias_2 = bias_2.reshape(self.output_units_number, 1)
+        center_mark = self.input_units_number * self.hidden_units_number
+        spread_mark = center_mark + self.hidden_units_number
+        weight_mark = spread_mark + self.hidden_units_number * self.output_units_number
+        center = variables[: center_mark].copy()
+        center = center.reshape(self.hidden_units_number, self.input_units_number)
+        spread = variables[center_mark: spread_mark].copy()
+        spread = spread.reshape(self.hidden_units_number, 1)
+        weight = variables[spread_mark: weight_mark].copy()
+        weight = weight.reshape(self.output_units_number, self.hidden_units_number)
+        bias = variables[weight_mark:].copy()
+        bias = bias.reshape(self.output_units_number, 1)
 
-        return weight_1, bias_1, weight_2, bias_2
+        return center, spread, weight, bias
 
     def save_model(self, path='model'):
-        np.save(path, [self.weight_1, self.bias_1, self.weight_2, self.bias_2])
+        np.save(path, [self.center, self.spread, self.weight, self.bias])
 
     def load_model(self, path):
         parameters = np.load(path)
 
-        self.weight_1 = parameters[0]
-        self.bias_1 = parameters[1]
-        self.weight_2 = parameters[2]
-        self.bias_2 = parameters[3]
+        self.center = parameters[0]
+        self.spread = parameters[1]
+        self.weight = parameters[2]
+        self.bias = parameters[3]
 
-        self.input_units_number = self.weight_1.shape[1]
-        self.hidden_units_number = self.weight_1.shape[0]
-        self.output_units_number = self.weight_2.shape[0]
+        self.input_units_number = self.center.shape[1]
+        self.hidden_units_number = self.center.shape[0]
+        self.output_units_number = self.weight.shape[0]
