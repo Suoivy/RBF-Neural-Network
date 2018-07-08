@@ -120,7 +120,7 @@ def main():
     regress = RBFModel(train_samples_x, train_samples_y, 10)
     regress.set_evaluate_dataset(eval_samples_x, eval_samples_y)
 
-    iteration = 500000
+    iteration = 5000
     evaluate = True  # Train model and evaluate with evaluate_samples simultaneously
     withcluster = True
 
@@ -149,7 +149,7 @@ def main():
             opt_fig = plt.figure()
             opt_plt = opt_fig.add_subplot(1, 1, 1)
             opt_plt.set_ylim([0, 5])
-            opt_plt.set_title(act)
+            opt_plt.set_title(act +'-'+ method)
             opt_fig.suptitle('Optimizers Comparision')
             losses = {}
             times = {}

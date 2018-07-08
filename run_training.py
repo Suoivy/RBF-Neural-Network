@@ -136,7 +136,7 @@ def main():
             opt_fig = plt.figure(1)
             opt_plt = opt_fig.add_subplot(1, 1, 1)
             opt_plt.set_ylim([0, 1])
-            opt_plt.set_title(act)
+            opt_plt.set_title(act + '-' + method)
             opt_fig.suptitle('Optimizers Comparision')
             losses = {}
             times = {}

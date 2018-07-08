@@ -134,14 +134,14 @@ def main():
     line = {'BGD': 'b-', 'Momentum': 'r-', 'NAG': 'g-', 'Adagrad': 'k-', 'Adadelta': 'y-', 'RMSProp': 'c-',
             'RMSProp_Nesterov': 'm-', 'Adam': 'k--'}
 
-    if not os.path.exists('inference'):
-        os.mkdir('inference')
+    if not os.path.exists('evalinference'):
+        os.mkdir('evalinference')
     if not os.path.exists('models'):
         os.mkdir('models')
 
     filelist = []
-    for file in os.listdir(os.getcwd() + '/models'):
-        file_path = os.path.join(os.getcwd() + '/models', file)
+    for file in os.listdir(os.getcwd() + '/evalmodels'):
+        file_path = os.path.join(os.getcwd() + '/evalmodels', file)
         if os.path.isdir(file_path):
             pass
         else:
@@ -161,7 +161,7 @@ def main():
 
         predict_y, loss = regress.evaluate(eval_samples_x, eval_samples_y)
         compare_visual(eval_samples_x, eval_samples_y, predict_y, save=True,
-                       path='inference/' + str(act_function) + '-' + str(opti) + '-' + str(method) + '-inference.png',
+                       path='evalinference/' + str(act_function) + '-' + str(opti) + '-' + str(method) + '-inference.png',
                        title=str(act_function) + '-' + str(opti) + '-' + str(method) + '-comparison', loss=loss)
 
         print(loss)
